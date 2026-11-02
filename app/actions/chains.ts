@@ -5,10 +5,12 @@ import { adminForAction, uuidPattern } from "@/lib/auth";
 import { executeChain, type RunPlan } from "@/lib/pipeline";
 import type { Step, Photo } from "@/lib/types";
 import { readPhoto } from "@/lib/photo";
+import { humorStyles } from "@/lib/humor";
 
 export async function saveChain(id: string | null, revision: number, name: string, description: string, steps: Step[]) {
   const auth = await adminForAction();
   if (auth.error !== undefined) return { error: auth.error };
+  if (Array.isArray(steps) && steps.length === 0) return { error: "Add at least one prompt chain step before saving." };
   if ((id && !uuidPattern.test(id)) || !Number.isInteger(revision) || typeof name !== "string" || typeof description !== "string" || !Array.isArray(steps) || steps.length > 6)
     return { error: "Invalid prompt chain." };
   const { data, error } = await auth.supabase.rpc("tool_save_chain", { p_id: id, p_revision: revision, p_name: name, p_description: description,
@@ -37,20 +39,25 @@ export async function findPhotos(query: string, page: number) {
   return { rows: data.rows as Photo[], total: data.total as number };
 }
 
-export async function generateMedia(chain: string, revision: number, image: string, scene: string) {
+export async function generateMedia(chain: string, revision: number, image: string, scene: string, humor: string) {
   const auth = await adminForAction();
   if (auth.error !== undefined) return { error: auth.error };
   if (!uuidPattern.test(chain) || !uuidPattern.test(image) || !Number.isInteger(revision) || typeof scene !== "string") return { error: "Choose a chain, photo and scene." };
+  const style = humorStyles.find(option => option.id === humor);
+  if (!style) return { error: "Choose an available humor style." };
+  const humorStyle = `${style.name}. ${style.instruction}`;
+  const context = `${scene.trim()}\n\nSelected humor style: ${humorStyle}`;
+  if (!scene.trim() || scene.length > 800 || context.length > 1000) return { error: "Enter a scene of at most 800 characters." };
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { error: "Generation is not configured. Add GEMINI_API_KEY to this deployment." };
   const { data, error } = await auth.supabase.rpc("tool_begin_run", { p_chain: chain, p_revision: revision, p_image: image,
-    p_scene: scene, p_default_model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite" });
+    p_scene: context, p_default_model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite" });
   if (error) return { error: error.message };
   const run = data as { id: string; plan: RunPlan; storage_path: string | null };
   try {
     const photo = run.storage_path ? await readPhoto(auth.supabase, run.storage_path) : undefined;
     const ai = new GoogleGenAI({ apiKey });
-    const output = await executeChain(run.plan, async ({ model, prompt, includePhoto }) => {
+    const output = await executeChain({ ...run.plan, humorStyle }, async ({ model, prompt, includePhoto }) => {
       const response = await ai.interactions.create({ model, input: includePhoto && photo ? [{ type: "text", text: prompt }, photo] : prompt, store: false },
         { timeout: 30_000, retries: { strategy: "none" } });
       return { text: response.output_text ?? "", inputTokens: response.usage?.total_input_tokens, outputTokens: response.usage?.total_output_tokens };

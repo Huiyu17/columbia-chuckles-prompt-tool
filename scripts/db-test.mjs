@@ -24,6 +24,8 @@ try {
  for(const file of ['012_week7_observability.sql','013_generation_pipeline.sql'])await db.exec(await readFile(new URL(`../supabase/${file}`,import.meta.url),'utf8'));
  const migration=await readFile(new URL('../supabase/015_prompt_chain_tool.sql',import.meta.url),'utf8');
  await check('migration applies twice without changing live mix',async()=>{await db.exec(migration);await db.exec(migration);assert.equal((await db.query('select weight from public.prompt_chain_mix')).rows[0].weight,'1');});
+ const detailsMigration=await readFile(new URL('../supabase/016_media_execution_details.sql',import.meta.url),'utf8');
+ await check('execution details migration is repeatable',async()=>{await db.exec(detailsMigration);await db.exec(detailsMigration);});
  for(const [role,id]of [['anon',''],['authenticated',member],['authenticated','']]) {
   await session(role,id);
   for(const [name,args]of [['tool_workspace',[]],['tool_save_chain',[null,0,'Unauthorized','',JSON.stringify([])]],['tool_delete_chain',[admin,0]],['tool_begin_run',[admin,0,photo,'scene','gemini-3.5-flash-lite']],['tool_record_step',[admin,'{}']],['tool_fail_run',[admin]],['tool_media',[null,1]]])
@@ -52,5 +54,22 @@ try {
  await check('failure retains completed intermediate steps',async()=>{const r=await rpc('tool_begin_run',[chain,3,photo,'Failed scene','gemini-3.5-flash-lite']);await rpc('tool_record_step',[r.id,result(0)]);await rpc('tool_fail_run',[r.id]);const found=(await rpc('tool_media',[chain,1])).rows.find(x=>x.id===r.id);assert.equal(found.status,'failed');assert.equal(found.outputs.length,1);assert.equal(found.output,null);});
  await check('delete chain keeps generated media and snapshots',async()=>{await rpc('tool_delete_chain',[chain,3]);const all=await rpc('tool_media',[null,1]);assert.ok(all.rows.some(r=>r.id===run.id&&r.chain_id===null&&r.chain_name==='Test chain'&&r.output==='Actual response 3'));assert.ok(!(await rpc('tool_workspace')).chains.some(c=>c.id===chain));});
  await check('empty chain can be created but not run',async()=>{const empty=await save(null,0,[],'Empty');await assert.rejects(()=>rpc('tool_begin_run',[empty,1,photo,'Scene','gemini-3.5-flash-lite']),/1–6/);await rpc('tool_delete_chain',[empty,1]);});
+ await check('public media includes historical prompt, response and exact usage',async()=>{
+   const request=await rpc('humor_begin_generation',[photo,'Finals at Butler','deadpan','Original full instructions','gemini-3.5-flash-lite']);
+   await rpc('humor_finish_generation',[request.request_id,'A perfectly normal finals week.',null,873,807,16]);
+   const found=(await rpc('tool_media',[live,1])).rows.find(row=>row.id===request.request_id);
+   assert.equal(found.outputs.length,1);assert.equal(found.outputs[0].latencyMs,873);
+   assert.equal(found.outputs[0].inputTokens,807);assert.equal(found.outputs[0].outputTokens,16);
+   assert.equal(found.outputs[0].prompt,request.prompt);assert.equal(found.outputs[0].output,'A perfectly normal finals week.');
+   assert.equal(found.outputs[0].model,request.model);
+ });
+ await check('failed public run preserves error and missing usage without fake zeros',async()=>{
+   const request=await rpc('humor_begin_generation',[photo,'Finals at Butler','absurd','Failed run instructions','gemini-3.5-flash-lite']);
+   await rpc('humor_finish_generation',[request.request_id,null,'Provider unavailable',0,null,null]);
+   const found=(await rpc('tool_media',[live,1])).rows.find(row=>row.id===request.request_id);
+   assert.equal(found.error,'Provider unavailable');assert.equal(found.outputs[0].inputTokens,null);
+   assert.equal(found.outputs[0].outputTokens,null);assert.equal(found.outputs[0].latencyMs,0);
+   assert.equal(found.outputs[0].prompt,request.prompt);assert.equal(found.status,'failed');
+ });
  console.log(`${checks} database checks passed. In-memory PostgreSQL only.`);
 } finally {await db.close();}

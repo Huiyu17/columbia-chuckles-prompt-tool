@@ -8,8 +8,9 @@ with the public site and Admin; it is deployed as its own GitHub/Vercel project.
 1. `npm ci` (Node 20.9+).
 2. Copy `.env.example` to `.env.local`. Use the same Supabase URL/anon key as the
    other apps, plus server-only `GEMINI_API_KEY`. Never commit credentials.
-3. Apply **only** `supabase/015_prompt_chain_tool.sql` to the shared project
-   after the existing 008–014 migrations. Do not rerun old migrations as setup.
+3. After the existing 008–014 migrations, apply 015 through 019 in order to
+   the shared project. Apply only migrations not already applied.
+   Do not rerun older migrations after 019; see `MULTISTEP_SETUP.md`.
    Copies of 008/012/013 are local test fixtures, not a new database bootstrap.
 4. Add `http://localhost:3002/auth/callback` to Supabase auth redirect URLs.
 5. `npm run dev` → http://localhost:3002.
@@ -23,8 +24,10 @@ Anonymous and ordinary users cannot read or mutate tool data.
 Create/edit/delete prompt chains and their steps; move steps up/down, then save.
 The entire ordered configuration saves transactionally with revision checks.
 Errors preserve edits. New chains are excluded from the public app's mix.
-Chains in the active public mix cannot be deleted or changed to zero/multiple
-steps; disable them in Admin first. The existing public engine remains single-step.
+After migration 017, new chains receive disabled Admin mix settings automatically.
+The upgraded public engine runs all 1–6 steps in saved order. Active chains may be
+edited; existing runs retain their configuration snapshots. Disable a live chain
+in Admin before deleting it. See `MULTISTEP_SETUP.md` for the three-app rollout.
 
 Choose a photo and scene, then Generate media. There are 1–6 **real sequential
 Google model calls**, one per step. Step 1 receives the photo (for Storage-backed
@@ -48,6 +51,12 @@ Run history is read-only. Appearance offers light, dark and system mode, follows
 system changes, and persists the chosen preference.
 
 ## Verification
+
+For execution details on public-app media, apply
+`supabase/016_media_execution_details.sql` after 015. This updates only the
+superadmin media query and exposes saved prompts, responses, errors, model names,
+durations and token usage. Historical missing values remain unavailable.
+The gallery shows both sources in a collapsed Execution details section.
 
 `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`.
 `node scripts/browser-test.mjs` runs the real React editor in Chromium (requires

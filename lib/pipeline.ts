@@ -1,13 +1,14 @@
 import type { StepOutput } from "./types";
 
-export type RunPlan = { steps: { prompt: string; model: string }[]; scene: string; description: string };
+export type RunPlan = { steps: { prompt: string; model: string }[]; scene: string; description: string; humorStyle?: string };
 export type Generate = (input: { model: string; prompt: string; includePhoto: boolean }) => Promise<{ text: string; inputTokens?: number; outputTokens?: number }>;
 
 export function stepPrompt(plan: RunPlan, index: number, previous: string): string {
   const input = index === 0
     ? `Photo description: ${plan.description}\nScene: ${plan.scene}`
     : `Output from step ${index}:\n${previous}`;
-  return `${plan.steps[index].prompt}\n\nInput:\n${input}`;
+  const style = plan.humorStyle ? `\n\nSelected humor style: ${plan.humorStyle}\nApply this style when writing humor or captions; keep descriptive or analytical steps faithful to their instructions.` : "";
+  return `${plan.steps[index].prompt}${style}\n\nInput:\n${input}`;
 }
 
 /** Sequential calls: an intermediate response is the next step's actual input. */
@@ -23,7 +24,7 @@ export async function executeChain(plan: RunPlan, generate: Generate, record: (s
     const output: StepOutput = { order: index, model: step.model, prompt, output: response.text.trim(),
       latencyMs: Date.now() - started, inputTokens: response.inputTokens ?? null, outputTokens: response.outputTokens ?? null };
     await record(output);
-    previous = output.output;
+    previous = response.text.trim();
   }
   return previous;
 }
