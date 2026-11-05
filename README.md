@@ -8,9 +8,9 @@ with the public site and Admin; it is deployed as its own GitHub/Vercel project.
 1. `npm ci` (Node 20.9+).
 2. Copy `.env.example` to `.env.local`. Use the same Supabase URL/anon key as the
    other apps, plus server-only `GEMINI_API_KEY`. Never commit credentials.
-3. After the existing 008–014 migrations, apply 015 through 019 in order to
+3. After the existing 008–014 migrations, apply 015 through 020 in order to
    the shared project. Apply only migrations not already applied.
-   Do not rerun older migrations after 019; see `MULTISTEP_SETUP.md`.
+   Do not rerun older migrations after 020; see `MULTISTEP_SETUP.md`.
    Copies of 008/012/013 are local test fixtures, not a new database bootstrap.
 4. Add `http://localhost:3002/auth/callback` to Supabase auth redirect URLs.
 5. `npm run dev` → http://localhost:3002.

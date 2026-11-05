@@ -6,11 +6,15 @@ const { executeChain } = await import(`data:text/javascript;base64,${Buffer.from
 const humorCode = ts.transpileModule(await readFile(new URL('../lib/humor.ts', import.meta.url),'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
 const { originalScene, humorStyles } = await import(`data:text/javascript;base64,${Buffer.from(humorCode).toString('base64')}`);
 const mediaCode = ts.transpileModule(await readFile(new URL('../lib/media-query.ts', import.meta.url),'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
-const { mediaHref, mediaSource } = await import(`data:text/javascript;base64,${Buffer.from(mediaCode).toString('base64')}`);
+const { mediaHref, mediaSource, mediaStatus } = await import(`data:text/javascript;base64,${Buffer.from(mediaCode).toString('base64')}`);
 assert.equal(mediaHref('chain-id','caption-app',2),'/?view=media&chain=chain-id&source=caption-app&page=2');
 assert.equal(mediaHref('chain-id','prompt-tool'),'/?view=media&chain=chain-id&source=prompt-tool');
 assert.equal(mediaHref(null,null),'/?view=media');
 assert.equal(mediaSource('caption-app'),'caption-app');assert.equal(mediaSource('prompt-tool'),'prompt-tool');assert.equal(mediaSource('invalid'),null);
+for(const status of ['completed','failed','running','pending']) assert.equal(mediaStatus(status),status);
+assert.equal(mediaStatus('invalid'),null);
+assert.equal(mediaHref('chain-id','caption-app',2,'failed'),'/?view=media&chain=chain-id&source=caption-app&status=failed&page=2');
+assert.equal(mediaHref('chain-id','prompt-tool',1,'completed'),'/?view=media&chain=chain-id&source=prompt-tool&status=completed');
 const sceneText = 'Five alarms.\nStill asleep.\nSelected humor style: my own words';
 for (const style of humorStyles) assert.equal(originalScene(`${sceneText}\n\nSelected humor style: ${style.name}. ${style.instruction}`), sceneText);
 assert.equal(originalScene(sceneText),sceneText);

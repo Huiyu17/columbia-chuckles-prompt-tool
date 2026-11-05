@@ -145,5 +145,24 @@ try {
  for(const [role,user] of [['anon',''],['authenticated',member]]) {
    await session(role,user);await check(`${role} cannot use source filtering`,()=>assert.rejects(()=>rpc('tool_media_filtered',[null,1,'prompt-tool']),e=>e.code==='42501'));
  }
+ await session('postgres');
+ const statusMigration=await readFile(new URL('../supabase/020_media_status_filter.sql',import.meta.url),'utf8');
+ await check('status migration is repeatable',async()=>{await db.exec(statusMigration);await db.exec(statusMigration);});
+ await db.query(`insert into public.generation_requests(user_id,prompt_chain_id,status,request) values($1,$2,'pending','{}'),($1,$2,'running','{}')`,[member,chain]);
+ await session('authenticated',admin);
+ await check('all execution statuses filter correctly with chain and source',async()=>{
+   for(const status of ['completed','failed','running','pending']) {
+     const result=await rpc('tool_media_search',[chain,1,null,status]);assert.ok(result.total>0);assert.ok(result.rows.every(row=>row.status===status&&row.chain_id===chain));
+     const publicRows=await rpc('tool_media_search',[chain,1,'caption-app',status]);assert.ok(publicRows.total>0);assert.ok(publicRows.rows.every(row=>row.source==='caption-app'&&row.status===status));
+   }
+   const tools=await rpc('tool_media_search',[chain,1,'prompt-tool','completed']);
+   const second=await rpc('tool_media_search',[chain,2,'prompt-tool','completed']);assert.equal(tools.rows.length,12);assert.equal(second.rows.length,tools.total-12);
+   assert.ok(second.rows.every(row=>row.source==='prompt-tool'&&row.status==='completed'));
+   assert.equal((await rpc('tool_media_search',[chain,1,'prompt-tool','failed'])).total,0);
+ });
+ await check('invalid status is rejected',()=>assert.rejects(()=>rpc('tool_media_search',[null,1,null,'invalid']),/Invalid generation status/));
+ for(const [role,user] of [['anon',''],['authenticated',member]]) {
+   await session(role,user);await check(`${role} cannot use status filtering`,()=>assert.rejects(()=>rpc('tool_media_search',[null,1,null,'failed']),e=>e.code==='42501'));
+ }
  console.log(`${checks} multi-step database checks passed.`);
 } finally {await db.close();}

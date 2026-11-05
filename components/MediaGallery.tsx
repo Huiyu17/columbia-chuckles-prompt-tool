@@ -2,14 +2,14 @@
 import Link from "next/link";
 import MediaFilter from "@/components/MediaFilter";
 import { originalScene } from "@/lib/humor";
-import { mediaHref, type MediaSource } from "@/lib/media-query";
+import { mediaHref, type MediaSource, type MediaStatus } from "@/lib/media-query";
 import type { Chain, Run } from "@/lib/types";
 const date = (value: string) => new Date(value).toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "medium", timeStyle: "short" });
-export default function MediaGallery({ chains, selected, source = null, rows, total, page, error }: { chains: Chain[]; selected: string | null; source?: MediaSource; rows: Run[]; total: number; page: number; error?: string }) {
-  const href = (p: number) => mediaHref(selected, source, p);
+export default function MediaGallery({ chains, selected, source = null, status = null, rows, total, page, error }: { chains: Chain[]; selected: string | null; source?: MediaSource; status?: MediaStatus; rows: Run[]; total: number; page: number; error?: string }) {
+  const href = (p: number) => mediaHref(selected, source, p, status);
   return <div className="stack-lg"><div className="page-title"><div><span className="eyebrow">From prompt to punchline</span><h1>Generated media</h1><p className="muted">Saved outputs from this tool and the public caption app.</p></div></div>
-    <MediaFilter chains={chains.map(chain => ({ id: chain.id, name: chain.name }))} selected={selected} source={source} />
-    {error ? <p role="alert" className="form-error">{error === "Source filtering requires database migration 019_media_source_filter.sql." ? error : "Could not load generated media. Refresh to try again."}</p> : <><p className="small muted">{total} runs · Page {page} · Times shown in New York time</p>{!rows.length && <div className="empty"><h2>No runs match these filters.</h2><p className="muted">Choose another prompt chain or source, or run a prompt chain to create new output.</p><Link className="button button-primary" href={selected ? `/?chain=${selected}` : "/"}>Open prompt chains</Link></div>}
+    <MediaFilter chains={chains.map(chain => ({ id: chain.id, name: chain.name }))} selected={selected} source={source} status={status} />
+    {error ? <p role="alert" className="form-error">{["Source filtering requires database migration 019_media_source_filter.sql.","Status filtering requires database migration 020_media_status_filter.sql."].includes(error) ? error : "Could not load generated media. Refresh to try again."}</p> : <><p className="small muted">{total} runs · Page {page} · Times shown in New York time</p>{!rows.length && <div className="empty"><h2>No runs match these filters.</h2><p className="muted">Choose another prompt chain, source or status, or run a prompt chain to create new output.</p><Link className="button button-primary" href={selected ? `/?chain=${selected}` : "/"}>Open prompt chains</Link></div>}
       <div className="media-grid">{rows.map(run => {
         const currentChain = chains.find(chain => chain.id === run.chain_id);
         const renamed = currentChain && currentChain.name !== run.chain_name;
