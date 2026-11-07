@@ -164,5 +164,36 @@ try {
  for(const [role,user] of [['anon',''],['authenticated',member]]) {
    await session(role,user);await check(`${role} cannot use status filtering`,()=>assert.rejects(()=>rpc('tool_media_search',[null,1,null,'failed']),e=>e.code==='42501'));
  }
+ await session('postgres');
+ const hideDeletedMigration=await readFile(new URL('../supabase/021_hide_deleted_chain_media.sql',import.meta.url),'utf8');
+ await check('deleted-chain gallery migration is repeatable',async()=>{await db.exec(hideDeletedMigration);await db.exec(hideDeletedMigration);});
+ await session('authenticated',admin);
+ const keptChain=await save(null,0,[{...steps[0],id:'50000000-0000-4000-8000-000000000001'}]);
+ const keptRun=await rpc('tool_begin_run',[keptChain,1,image,'Keep this visible','gemini-3.5-flash-lite']);
+ await rpc('tool_record_step',[keptRun.id,JSON.stringify({order:0,model:'gemini-3.5-flash-lite',prompt:'Kept prompt',output:'Kept caption.',latencyMs:10,inputTokens:5,outputTokens:3})]);
+ const historyBefore=await rpc('admin_tool_run_history',[1]);
+ const requestsBefore=await rpc('admin_resource_read',['generation_requests',1,'']);
+ await rpc('admin_save_chain_mix',[JSON.stringify([{chain,enabled:false,weight:1}])]);
+ const revision=(await rpc('tool_workspace')).chains.find(row=>row.id===chain).revision;
+ await rpc('tool_delete_chain',[chain,revision]);
+ await check('all gallery query variants exclude deleted chains before counting/pagination',async()=>{
+   for(const [name,args] of [['tool_media',[null,1]],['tool_media_filtered',[null,1,null]],['tool_media_search',[null,1,null,null]]]) {
+     const result=await rpc(name,args);assert.equal(result.total,1);assert.equal(result.rows.length,1);assert.equal(result.rows[0].id,keptRun.id);
+   }
+   assert.equal((await rpc('tool_media_filtered',[null,1,'caption-app'])).total,0);
+   assert.equal((await rpc('tool_media_search',[null,1,'prompt-tool','completed'])).total,1);
+   assert.equal((await rpc('tool_media_search',[null,1,null,'failed'])).total,0);
+   assert.equal((await rpc('tool_media_search',[chain,1,null,null])).total,0);
+ });
+ await check('Admin retains deleted-chain tool and public execution history',async()=>{
+   const history=await rpc('admin_tool_run_history',[1]);assert.equal(history.total,historyBefore.total);assert.ok(history.rows.some(row=>row.chain_id===null));
+   const requests=await rpc('admin_resource_read',['generation_requests',1,'']);assert.equal(requests.total,requestsBefore.total);
+   assert.ok(requests.rows.some(row=>row.prompt_chain_id===null&&row.request.deleted_chain_name));
+ });
+ for(const [role,user] of [['anon',''],['authenticated',member]]) {
+   await session(role,user);
+   for(const [name,args] of [['tool_media',[null,1]],['tool_media_filtered',[null,1,null]],['tool_media_search',[null,1,null,null]]])
+     await check(`${role} cannot read the updated ${name}`,()=>assert.rejects(()=>rpc(name,args),e=>e.code==='42501'));
+ }
  console.log(`${checks} multi-step database checks passed.`);
 } finally {await db.close();}

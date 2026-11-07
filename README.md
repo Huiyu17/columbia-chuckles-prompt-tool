@@ -8,9 +8,9 @@ with the public site and Admin; it is deployed as its own GitHub/Vercel project.
 1. `npm ci` (Node 20.9+).
 2. Copy `.env.example` to `.env.local`. Use the same Supabase URL/anon key as the
    other apps, plus server-only `GEMINI_API_KEY`. Never commit credentials.
-3. After the existing 008–014 migrations, apply 015 through 020 in order to
+3. After the existing 008–014 migrations, apply 015 through 021 in order to
    the shared project. Apply only migrations not already applied.
-   Do not rerun older migrations after 020; see `MULTISTEP_SETUP.md`.
+   Do not rerun older migrations after 021; see `MULTISTEP_SETUP.md`.
    Copies of 008/012/013 are local test fixtures, not a new database bootstrap.
 4. Add `http://localhost:3002/auth/callback` to Supabase auth redirect URLs.
 5. `npm run dev` → http://localhost:3002.
@@ -38,15 +38,18 @@ registered environment default. Other providers are not implemented.
 
 The final output is generated text/captions, paired with the source image; this
 tool does not synthesize new raster images or automatically publish public captions.
-Generated media includes tool runs and existing public-app request outputs, filtered
+Generated media includes tool runs and existing public-app request outputs for
+chains that still exist. Migration 021 hides deleted-chain runs before counting
+and pagination; original execution history stays available in Admin. Results are filtered
 by exact chain internally. Step results show real output, instructions, duration
 and token counts. Missing usage stays unavailable. No demonstration runs are seeded.
 
 Configuration snapshots and intermediate outputs persist before continuing.
 Failures stop subsequent calls. Interruption can leave an in-progress run; a new
 attempt after five minutes marks abandoned runs failed. One active run per admin
-prevents accidental concurrent calls. Deleting chain configuration preserves tool
-media and original public requests/responses, detaching configuration references.
+prevents accidental concurrent calls. Deleting chain configuration hides its runs
+from the tool gallery while retaining original execution history in Admin,
+detaching configuration references.
 Run history is read-only. Appearance offers light, dark and system mode, follows
 system changes, and persists the chosen preference.
 

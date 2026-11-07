@@ -8,7 +8,8 @@ export function stepPrompt(plan: RunPlan, index: number, previous: string): stri
     ? `Photo description: ${plan.description}\nScene: ${plan.scene}`
     : `Output from step ${index}:\n${previous}`;
   const style = plan.humorStyle ? `\n\nSelected humor style: ${plan.humorStyle}\nApply this style when writing humor or captions; keep descriptive or analytical steps faithful to their instructions.` : "";
-  return `${plan.steps[index].prompt}${style}\n\nInput:\n${input}`;
+  const format = "Output formatting: Use plain text without Markdown asterisks for bold or italic text. Preserve requested numbering; use plain bullet characters for unordered lists.";
+  return `${plan.steps[index].prompt}${style}\n\n${format}\n\nInput:\n${input}`;
 }
 
 /** Sequential calls: an intermediate response is the next step's actual input. */

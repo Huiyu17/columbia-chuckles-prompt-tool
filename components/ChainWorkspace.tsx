@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { saveChain, deleteChain, generateMedia, findPhotos } from "@/app/actions/chains";
 import type { Workspace, Step, Photo } from "@/lib/types";
 import { humorStyles, type HumorStyle } from "@/lib/humor";
+import { cleanOutputText } from "@/lib/output-text";
 
 export default function ChainWorkspace({ data, selected }: { data: Workspace; selected: string | null }) {
   const router = useRouter();
@@ -82,7 +83,7 @@ export default function ChainWorkspace({ data, selected }: { data: Workspace; se
             <button type="button" className="add-step" disabled={steps.length >= 6 || !data.models.length} onClick={() => setSteps(current => [...current, { id: crypto.randomUUID(), prompt: "", llm_model_id: data.models[0].id, step_order: current.length }])}>+ Add prompt chain step</button>
             <div className="row"><button className="button-primary" disabled={!dirty || !name.trim() || !steps.length || steps.some(step => !step.prompt.trim() || !data.models.some(model => model.id === step.llm_model_id))} onClick={save}>{busy === "save" ? "Saving…" : chain ? "Save changes" : "Create prompt chain"}</button><button className="button-ghost" disabled={!dirty} onClick={reset}>Discard changes</button></div>
           </fieldset>
-          {chain && <div className="delete-area">{confirmDelete ? <div className="stack"><p>Delete this prompt chain and its steps? Generated media and run history will be kept.</p><div className="row"><button disabled={!!busy} className="button-danger" onClick={remove}>{busy === "delete" ? "Deleting…" : "Confirm deletion"}</button><button disabled={!!busy} className="button-ghost" onClick={() => setConfirmDelete(false)}>Cancel</button></div></div> : <button disabled={!!busy} className="button-ghost danger" onClick={() => setConfirmDelete(true)}>Delete prompt chain</button>}</div>}
+          {chain && <div className="delete-area">{confirmDelete ? <div className="stack"><p>Delete this prompt chain and its steps? Its runs will be hidden from Generated media. Execution history will remain available in Admin.</p><div className="row"><button disabled={!!busy} className="button-danger" onClick={remove}>{busy === "delete" ? "Deleting…" : "Confirm deletion"}</button><button disabled={!!busy} className="button-ghost" onClick={() => setConfirmDelete(false)}>Cancel</button></div></div> : <button disabled={!!busy} className="button-ghost danger" onClick={() => setConfirmDelete(true)}>Delete prompt chain</button>}</div>}
         </section>
         {error && <p className="form-error card" role="alert">{error}</p>}{notice && <p role="status" className="success">{notice}</p>}
         <section className="card stack"><div className="row spread"><div><span className="eyebrow">See it in action</span><h2>Generate media</h2></div>{chain && <Link className="text-link" href={`/?view=media&chain=${chain.id}`}>View generated media →</Link>}</div>
@@ -92,7 +93,7 @@ export default function ChainWorkspace({ data, selected }: { data: Workspace; se
             <label>Scene<textarea rows={2} value={scene} onChange={event => setScene(event.target.value)} maxLength={800} placeholder="e.g. Waiting outside Butler the night before finals" /></label>
             <label>Choose the humor<select value={humor} onChange={event => setHumor(event.target.value as HumorStyle)}>{humorStyles.map(style => <option key={style.id} value={style.id}>{style.name}</option>)}</select></label>
             {dirty && <p className="callout">Save your changes before generating.</p>}<div className="row"><button className="button-primary" disabled={dirty || !steps.length || !photo || !scene.trim()} onClick={run}>{busy === "run" ? `Running ${steps.length} ${steps.length === 1 ? "step" : "steps"}…` : "Generate media"}</button>{busy === "run" && <span role="status" className="small muted">Each model call can take up to 30 seconds. Step results are saved as they finish.</span>}</div></fieldset>}
-          {result && <div className="output-panel"><span className="eyebrow">Final output</span><p className="generated-text">{result}</p></div>}
+          {result && <div className="output-panel"><span className="eyebrow">Final output</span><p className="generated-text">{cleanOutputText(result)}</p></div>}
         </section>
       </>}</div>
     </div></div>;

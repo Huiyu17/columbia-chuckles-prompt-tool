@@ -19,10 +19,18 @@ const sceneText = 'Five alarms.\nStill asleep.\nSelected humor style: my own wor
 for (const style of humorStyles) assert.equal(originalScene(`${sceneText}\n\nSelected humor style: ${style.name}. ${style.instruction}`), sceneText);
 assert.equal(originalScene(sceneText),sceneText);
 assert.equal(originalScene('An ordinary public scene.'),'An ordinary public scene.');
+const outputCode=ts.transpileModule(await readFile(new URL('../lib/output-text.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText;
+const {cleanOutputText}=await import(`data:text/javascript;base64,${Buffer.from(outputCode).toString('base64')}`);
+assert.equal(cleanOutputText('1. **Visual details:** Extreme side-eye.\n2. **Scene:** So tired.\n3. **Humor style:** Too relatable.'),'1. Visual details: Extreme side-eye.\n2. Scene: So tired.\n3. Humor style: Too relatable.');
+assert.equal(cleanOutputText('* First candidate\n* Second candidate'),'• First candidate\n• Second candidate');
+assert.equal(cleanOutputText('A *dry* joke and ***strong emphasis***.'),'A dry joke and strong emphasis.');
+assert.equal(cleanOutputText('2 * 3 = 6; A*; file*.png; `2 * 3`'),'2 * 3 = 6; A*; file*.png; `2 * 3`');
+assert.equal(cleanOutputText('Plain output.\n\nAnother paragraph.'),'Plain output.\n\nAnother paragraph.');
 const plan = { scene:'Finals at Butler', description:'A student asleep over a textbook', steps:[{prompt:'Describe the photo', model:'test-one'}, {prompt:'Find the joke', model:'test-two'}, {prompt:'Write five captions', model:'test-three'}] };
 const calls=[], records=[];
 const output = await executeChain(plan,async input => { calls.push(input); return {text:`real output ${calls.length}`,inputTokens:10,outputTokens:4}; },async step => records.push(step));
 assert.equal(output,'real output 3'); assert.equal(calls.length,3);
+assert.ok(calls.every(call=>call.prompt.includes('Use plain text without Markdown asterisks')));
 assert.ok(calls[0].prompt.includes('Finals at Butler')); assert.ok(calls[0].includePhoto);
 assert.ok(calls[1].prompt.includes('real output 1')); assert.equal(calls[1].includePhoto,false);
 assert.ok(calls[2].prompt.includes('real output 2')); assert.ok(!calls[2].prompt.includes('real output 1'));
